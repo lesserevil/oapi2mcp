@@ -1,0 +1,44 @@
+# Config (may contain secrets/local settings)
+config.yaml
+
+# Beads issue tracker (dolt db and runtime files)
+.beads/dolt/
+.beads/dolt-access.lock
+.beads/bd.sock
+.beads/bd.sock.startlock
+.beads/sync-state.json
+.beads/last-touched
+.beads/.local_version
+.beads/redirect
+.beads/.sync.lock
+.beads/.jsonl.lock
+.beads/sync_base.jsonl
+.beads/export-state/
+.beads/ephemeral.sqlite3*
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.env
+*.egg-info/
+dist/
+build/
+
+# uv
+.python-version
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# MCP local config (may contain tokens/paths)
+.mcp.json
