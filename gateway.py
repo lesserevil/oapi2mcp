@@ -154,6 +154,20 @@ async def build_gateway(config_path: str) -> Starlette:
     async def healthz(request: Request) -> JSONResponse:
         return JSONResponse({"status": "ok", "apis": list(apis.keys())})
 
+    async def well_known_mcp(request: Request) -> JSONResponse:
+        base = str(request.base_url).rstrip("/")
+        return JSONResponse({
+            "mcp_version": "2024-11-05",
+            "servers": [
+                {
+                    "name": name,
+                    "url": f"{base}/{name}/mcp",
+                    "transport": "streamable-http",
+                }
+                for name in apis
+            ],
+        })
+
     async def debug_headers(request: Request) -> JSONResponse:
         headers = dict(request.headers)
         token = _bearer_token.get()
@@ -164,6 +178,7 @@ async def build_gateway(config_path: str) -> Starlette:
         })
 
     routes.append(Route("/healthz", healthz))
+    routes.append(Route("/.well-known/mcp.json", well_known_mcp))
     routes.append(Route("/debug/headers", debug_headers))
 
     @contextlib.asynccontextmanager

@@ -331,6 +331,81 @@ async def test_build_gateway_calls_load_api_with_config(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_well_known_mcp_structure(tmp_path):
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        "apis:\n"
+        "  myapi:\n"
+        "    spec: http://mock.local/spec.json\n"
+        "    base_url: http://mock.local\n"
+        "    auth: none\n"
+    )
+    mock_app = _mock_mcp_http_app()
+    with patch("gateway.load_api", new=AsyncMock(return_value=(mock_app, mock_app))):
+        app = await build_gateway(str(config))
+
+    with TestClient(app) as client:
+        resp = client.get("/.well-known/mcp.json")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["mcp_version"] == "2024-11-05"
+    assert len(data["servers"]) == 1
+    server = data["servers"][0]
+    assert server["name"] == "myapi"
+    assert server["url"].endswith("/myapi/mcp")
+    assert server["transport"] == "streamable-http"
+
+
+@pytest.mark.asyncio
+async def test_well_known_mcp_url_uses_request_host(tmp_path):
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        "apis:\n"
+        "  myapi:\n"
+        "    spec: http://mock.local/spec.json\n"
+        "    base_url: http://mock.local\n"
+        "    auth: none\n"
+    )
+    mock_app = _mock_mcp_http_app()
+    with patch("gateway.load_api", new=AsyncMock(return_value=(mock_app, mock_app))):
+        app = await build_gateway(str(config))
+
+    with TestClient(app, base_url="http://gateway.example.com") as client:
+        resp = client.get("/.well-known/mcp.json")
+
+    server = resp.json()["servers"][0]
+    assert server["url"] == "http://gateway.example.com/myapi/mcp"
+
+
+@pytest.mark.asyncio
+async def test_well_known_mcp_lists_all_apis(tmp_path):
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        "apis:\n"
+        "  api1:\n"
+        "    spec: http://mock1.local/spec.json\n"
+        "    base_url: http://mock1.local\n"
+        "    auth: none\n"
+        "  api2:\n"
+        "    spec: http://mock2.local/spec.json\n"
+        "    base_url: http://mock2.local\n"
+        "    auth: bearer_passthrough\n"
+    )
+    mock_app = _mock_mcp_http_app()
+    with patch("gateway.load_api", new=AsyncMock(return_value=(mock_app, mock_app))):
+        app = await build_gateway(str(config))
+
+    with TestClient(app) as client:
+        resp = client.get("/.well-known/mcp.json")
+
+    servers = {s["name"]: s for s in resp.json()["servers"]}
+    assert set(servers) == {"api1", "api2"}
+    assert servers["api1"]["url"].endswith("/api1/mcp")
+    assert servers["api2"]["url"].endswith("/api2/mcp")
+
+
+@pytest.mark.asyncio
 async def test_build_gateway_multiple_apis(tmp_path):
     config = tmp_path / "config.yaml"
     config.write_text(

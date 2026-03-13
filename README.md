@@ -17,6 +17,49 @@ make setup
 make run
 ```
 
+## Docker
+
+```bash
+# Build
+make build
+# or: docker build -t oapi2mcp .
+# or: IMAGE_TAG=myrepo/oapi2mcp:latest make build
+
+# Run — mount your config file at /app/config.yaml
+docker run -p 8000:8000 \
+  -v "$(pwd)/config.yaml:/app/config.yaml:ro" \
+  oapi2mcp
+```
+
+Override host/port via CLI args or environment variables:
+
+```bash
+# Custom port via arg
+docker run -p 9000:9000 \
+  -v "$(pwd)/config.yaml:/app/config.yaml:ro" \
+  oapi2mcp --port 9000
+
+# Custom port via env var
+docker run -p 9000:9000 \
+  -e PORT=9000 \
+  -v "$(pwd)/config.yaml:/app/config.yaml:ro" \
+  oapi2mcp
+```
+
+The container expects the config to be mounted at `/app/config.yaml`. It will exit non-zero if the file is absent or the spec URLs are unreachable.
+
+### Building from inside a container
+
+`make build` and `make test-docker` use the Docker CLI, which works inside a container via Docker-out-of-Docker — mount the host socket:
+
+```bash
+docker run --rm \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v "$(pwd):/workspace" -w /workspace \
+  <your-ci-image> \
+  make build
+```
+
 ## Configuration
 
 ```yaml
@@ -92,10 +135,11 @@ Token isolation is per-request via `contextvars` — concurrent calls from diffe
 ## Development
 
 ```bash
-make setup   # create .venv and install deps
-make test    # run pytest
-make lint    # run ruff
-make run     # start gateway on :8001
+make setup        # create .venv and install deps
+make test         # run unit tests
+make test-docker  # run Docker integration tests (requires Docker)
+make lint         # run ruff
+make run          # start gateway on :8001
 ```
 
 ## Endpoints
