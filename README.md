@@ -67,8 +67,8 @@ docker run --rm \
 # config.yaml
 apis:
   horde:
-    spec: https://horde.nvidia.com/openapi.json
-    base_url: https://horde.nvidia.com
+    spec: https://horde.example.com/openapi.json
+    base_url: https://horde.example.com
     auth: bearer_passthrough   # forward caller's Bearer token upstream
 
   internal:
