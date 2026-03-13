@@ -16,6 +16,10 @@ sole source of truth — no Dolt database, no central server.
   keeping both conflicting lines (both are valid events).
 - Never run `bd daemon` or commands that require the Dolt backend.
 
+## Documentation
+
+Keep documentation in sync with the code. When you add, remove, or change an endpoint, config option, CLI flag, environment variable, or make target, update README.md in the same commit. The Endpoints table, environment variable table, and make target list are the most commonly affected sections.
+
 ## Quick Reference
 
 ```bash

@@ -5,9 +5,10 @@
 A single gateway that turns any OpenAPI spec into an MCP server. Configure one or more upstream APIs in `config.yaml` and the gateway exposes a separate MCP endpoint for each — all behind one HTTP server.
 
 ```
-https://gateway/horde/mcp   →  MCP tools from horde's OpenAPI spec
-https://gateway/foo/mcp     →  MCP tools from foo's OpenAPI spec
-https://gateway/healthz     →  liveness probe
+https://gateway/horde/mcp          →  MCP tools from horde's OpenAPI spec
+https://gateway/foo/mcp            →  MCP tools from foo's OpenAPI spec
+https://gateway/healthz            →  liveness probe
+https://gateway/.well-known/mcp.json  →  MCP service discovery
 ```
 
 ## Quick Start
@@ -148,4 +149,5 @@ make run          # start gateway on :8001
 |------|-------------|
 | `/<name>/mcp` | MCP streamable-HTTP endpoint for the named API |
 | `/healthz` | Returns `{"status": "ok", "apis": [...]}` |
+| `/.well-known/mcp.json` | Service discovery — lists all servers with their URLs and transport |
 | `/debug/headers` | Shows incoming headers and whether the bearer token context var is set |
