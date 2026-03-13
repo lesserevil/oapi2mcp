@@ -94,10 +94,15 @@ Already implemented:
 - [x] Builds a `FastMCP` tool server per API via `from_openapi()`
 - [x] Mounts all MCP apps under `/<name>/mcp` in a single Starlette app
 - [x] `bearer_passthrough` via `BearerPassthroughMiddleware` + `TokenPropagatingClient`
-- [x] `none` auth (plain `httpx.AsyncClient`)
+  - Token injected in `send()`, not `build_request()` — fastmcp calls `send()` directly with pre-built requests
+- [x] `none` auth (validating `httpx.AsyncClient` subclass)
 - [x] `/healthz` endpoint listing loaded APIs
+- [x] `/debug/headers` endpoint showing bearer token context state
 - [x] CLI flags: `--config`, `--host`, `--port`, `--log-level`
 - [x] Env var overrides: `HOST`, `PORT`, `LOG_LEVEL`
+- [x] `pyproject.toml` with pytest and ruff config
+- [x] `test_gateway.py` — unit tests for all gateway components
+- [x] GitHub Actions CI — lint + test on PRs and pushes to main
 
 ---
 
@@ -108,7 +113,7 @@ Already implemented:
 | # | Item | Notes |
 |---|------|-------|
 | 1 | **Dockerfile** | Multi-stage: builder installs deps with `uv`, final image runs `gateway.py` |
-| 2 | **`pyproject.toml` / `requirements.txt`** | Pin `fastmcp`, `httpx`, `uvicorn`, `pyyaml`, `starlette` |
+| 2 | ~~**`pyproject.toml` / `requirements.txt`**~~ | Done — `pyproject.toml` with ruff + pytest config |
 | 3 | **Local spec file support** | `spec: ./path/to/spec.json` — detect file:// or relative paths and read from disk instead of HTTP |
 | 4 | **Startup failure isolation** | If one API's spec fetch fails, log and skip it rather than crashing the whole gateway |
 | 5 | **Config validation** | Fail fast with clear error messages for missing required fields |
@@ -140,9 +145,13 @@ Already implemented:
 
 ```
 oapi2mcp/
-├── gateway.py              # main entrypoint (exists)
-├── config.yaml             # example config (exists)
-├── pyproject.toml          # deps + build metadata          [TODO]
+├── gateway.py              # main entrypoint ✓
+├── config.yaml             # example config ✓
+├── pyproject.toml          # deps + build metadata ✓
+├── Makefile                # dev helpers ✓
+├── test_gateway.py         # unit tests ✓
+├── .github/workflows/
+│   └── test.yml            # CI: lint + test on PR / main ✓
 ├── Dockerfile              # container image                [TODO]
 ├── k8s/
 │   ├── deployment.yaml                                      [TODO]
@@ -153,12 +162,9 @@ oapi2mcp/
 │   ├── Chart.yaml
 │   ├── values.yaml
 │   └── templates/
-├── Makefile                # dev helpers (exists)
 ├── PLAN.md                 # this file
-└── tests/
-    ├── test_gateway.py     # integration tests with a mock upstream  [TODO]
-    └── fixtures/
-        └── petstore.json   # local spec for testing         [TODO]
+└── fixtures/
+    └── petstore.json       # local spec for testing         [TODO]
 ```
 
 ---
