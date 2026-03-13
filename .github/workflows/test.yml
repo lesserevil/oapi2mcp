@@ -1,0 +1,23 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv venv --python 3.13 .venv && uv pip install --python .venv/bin/python fastmcp httpx uvicorn pyyaml pytest pytest-asyncio ruff
+
+      - name: Lint
+        run: .venv/bin/ruff check gateway.py test_gateway.py
+
+      - name: Test
+        run: .venv/bin/pytest test_gateway.py -v
