@@ -1,25 +1,62 @@
 stages:
+  - lint
+  - test
   - build
 
 variables:
-  IMAGE: $CI_REGISTRY_IMAGE
-  DOCKER_DRIVER: overlay2
-  DOCKER_TLS_CERTDIR: "/certs"
+  IMAGE_NAME: $CI_REGISTRY_IMAGE
+
+lint:
+  stage: lint
+  tags:
+    - os/linux
+    - ran-as/container
+  image: python:3.13-slim
+  before_script:
+    - pip install --quiet uv
+    - uv pip install --system --quiet ruff
+  script:
+    - ruff check gateway.py test_gateway.py test_docker.py
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+test:
+  stage: test
+  tags:
+    - os/linux
+    - ran-as/container
+  image: python:3.13-slim
+  before_script:
+    - pip install --quiet uv
+    - uv pip install --system --quiet fastmcp httpx uvicorn pyyaml pytest pytest-asyncio
+  script:
+    - pytest test_gateway.py -v
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 build-and-push:
   stage: build
-  image: docker:27
-  services:
-    - docker:27-dind
+  tags:
+    - os/linux
+    - type/docker
+    - ran-as/container
+  image:
+    name: quay.io/buildah/stable:latest
+    entrypoint: [""]
+  variables:
+    STORAGE_DRIVER: vfs
+    BUILDAH_FORMAT: docker
   before_script:
-    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    - buildah login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
   script:
     - |
-      docker build \
-        --tag "$IMAGE:$CI_COMMIT_SHORT_SHA" \
-        --tag "$IMAGE:latest" \
+      buildah build \
+        --tag "$IMAGE_NAME:$CI_COMMIT_SHORT_SHA" \
+        --tag "$IMAGE_NAME:latest" \
         .
-    - docker push "$IMAGE:$CI_COMMIT_SHORT_SHA"
-    - docker push "$IMAGE:latest"
+    - buildah push "$IMAGE_NAME:$CI_COMMIT_SHORT_SHA"
+    - buildah push "$IMAGE_NAME:latest"
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
