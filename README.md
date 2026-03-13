@@ -65,6 +65,13 @@ docker run --rm \
 
 ```yaml
 # config.yaml
+
+# Optional: public URL of this gateway, used in /.well-known/mcp.json.
+# Set this when running behind a reverse proxy or load balancer so that
+# advertised MCP URLs reflect the external address, not the internal one.
+# If omitted, URLs are derived from each request's Host header.
+public_url: https://gateway.example.com
+
 apis:
   horde:
     spec: https://horde.example.com/openapi.json

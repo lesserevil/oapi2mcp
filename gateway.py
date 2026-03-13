@@ -154,8 +154,10 @@ async def build_gateway(config_path: str) -> Starlette:
     async def healthz(request: Request) -> JSONResponse:
         return JSONResponse({"status": "ok", "apis": list(apis.keys())})
 
+    configured_public_url: str | None = config.get("public_url")
+
     async def well_known_mcp(request: Request) -> JSONResponse:
-        base = str(request.base_url).rstrip("/")
+        base = (configured_public_url or str(request.base_url)).rstrip("/")
         return JSONResponse({
             "mcp_version": "2024-11-05",
             "servers": [

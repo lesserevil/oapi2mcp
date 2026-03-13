@@ -379,6 +379,51 @@ async def test_well_known_mcp_url_uses_request_host(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_well_known_mcp_uses_configured_public_url(tmp_path):
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        "public_url: https://gateway.example.com\n"
+        "apis:\n"
+        "  myapi:\n"
+        "    spec: http://mock.local/spec.json\n"
+        "    base_url: http://mock.local\n"
+        "    auth: none\n"
+    )
+    mock_app = _mock_mcp_http_app()
+    with patch("gateway.load_api", new=AsyncMock(return_value=(mock_app, mock_app))):
+        app = await build_gateway(str(config))
+
+    # Request arrives with an internal hostname — public_url should win
+    with TestClient(app, base_url="http://internal-lb.cluster.local") as client:
+        resp = client.get("/.well-known/mcp.json")
+
+    server = resp.json()["servers"][0]
+    assert server["url"] == "https://gateway.example.com/myapi/mcp"
+
+
+@pytest.mark.asyncio
+async def test_well_known_mcp_public_url_trailing_slash_normalised(tmp_path):
+    config = tmp_path / "config.yaml"
+    config.write_text(
+        "public_url: https://gateway.example.com/\n"
+        "apis:\n"
+        "  myapi:\n"
+        "    spec: http://mock.local/spec.json\n"
+        "    base_url: http://mock.local\n"
+        "    auth: none\n"
+    )
+    mock_app = _mock_mcp_http_app()
+    with patch("gateway.load_api", new=AsyncMock(return_value=(mock_app, mock_app))):
+        app = await build_gateway(str(config))
+
+    with TestClient(app) as client:
+        resp = client.get("/.well-known/mcp.json")
+
+    server = resp.json()["servers"][0]
+    assert server["url"] == "https://gateway.example.com/myapi/mcp"
+
+
+@pytest.mark.asyncio
 async def test_well_known_mcp_lists_all_apis(tmp_path):
     config = tmp_path / "config.yaml"
     config.write_text(
