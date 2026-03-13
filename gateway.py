@@ -13,6 +13,7 @@ Usage:  python gateway.py [--config config.yaml] [--host 0.0.0.0] [--port 8000]
 
 import argparse
 import asyncio
+import contextlib
 import contextvars
 import os
 from typing import Any
@@ -37,14 +38,29 @@ ROUTE_MAPS = [RouteMap(methods="*", mcp_type=MCPType.TOOL)]
 _bearer_token: contextvars.ContextVar[str] = contextvars.ContextVar("bearer_token", default="")
 
 
+def _check_json_response(response: httpx.Response) -> None:
+    """Raise a clear error if the backend returned non-JSON (e.g. an HTML frontend page)."""
+    content_type = response.headers.get("content-type", "")
+    if response.is_success and "application/json" not in content_type:
+        raise httpx.HTTPStatusError(
+            f"Expected JSON response but got content-type {content_type!r}. "
+            "The backend URL may be wrong or the endpoint does not exist.",
+            request=response.request,
+            response=response,
+        )
+
+
 class TokenPropagatingClient(httpx.AsyncClient):
     """Injects the per-request bearer token into every outbound API call."""
 
-    def build_request(self, method: str, url: Any, **kwargs: Any) -> httpx.Request:
-        request = super().build_request(method, url, **kwargs)
-        if token := _bearer_token.get():
+    async def send(self, request: httpx.Request, **kwargs: Any) -> httpx.Response:
+        token = _bearer_token.get()
+        print(f"[DEBUG] TokenPropagatingClient.send: token={token[:20]!r}... present={bool(token)}")
+        if token:
             request.headers["Authorization"] = f"Bearer {token}"
-        return request
+        response = await super().send(request, **kwargs)
+        _check_json_response(response)
+        return response
 
 
 class BearerPassthroughMiddleware:
@@ -58,6 +74,8 @@ class BearerPassthroughMiddleware:
             headers = dict(scope.get("headers", []))
             auth = headers.get(b"authorization", b"").decode()
             token = auth[7:] if auth.lower().startswith("bearer ") else auth
+            print(f"[DEBUG] BearerPassthrough: auth_header={auth[:20]!r}... "
+                  f"token_present={bool(token)}")
             ctx = _bearer_token.set(token)
             try:
                 await self.app(scope, receive, send)
@@ -87,7 +105,13 @@ async def load_api(name: str, cfg: dict) -> Any:
             timeout=60.0,
         )
     else:  # none
-        api_client = httpx.AsyncClient(
+        class _ValidatingClient(httpx.AsyncClient):
+            async def send(self, request: httpx.Request, **kwargs: Any) -> httpx.Response:
+                response = await super().send(request, **kwargs)
+                _check_json_response(response)
+                return response
+
+        api_client = _ValidatingClient(
             base_url=base_url,
             headers={"Accept": "application/json"},
             verify=False,
@@ -101,12 +125,14 @@ async def load_api(name: str, cfg: dict) -> Any:
         name=name,
     )
 
-    mcp_app = mcp.http_app(transport="streamable-http")
+    mcp_http_app = mcp.http_app(transport="streamable-http")
 
     if auth == "bearer_passthrough":
-        mcp_app = BearerPassthroughMiddleware(mcp_app)
+        mount_app = BearerPassthroughMiddleware(mcp_http_app)
+    else:
+        mount_app = mcp_http_app
 
-    return mcp_app
+    return mcp_http_app, mount_app
 
 
 async def build_gateway(config_path: str) -> Starlette:
@@ -118,24 +144,43 @@ async def build_gateway(config_path: str) -> Starlette:
         raise ValueError(f"No apis defined in {config_path}")
 
     print(f"Loading {len(apis)} API(s)...")
+    mcp_http_apps = []
     routes = []
     for name, cfg in apis.items():
-        app = await load_api(name, cfg)
-        routes.append(Mount(f"/{name}", app=app))
+        mcp_http_app, mount_app = await load_api(name, cfg)
+        mcp_http_apps.append(mcp_http_app)
+        routes.append(Mount(f"/{name}", app=mount_app))
 
     async def healthz(request: Request) -> JSONResponse:
         return JSONResponse({"status": "ok", "apis": list(apis.keys())})
 
-    routes.append(Route("/healthz", healthz))
+    async def debug_headers(request: Request) -> JSONResponse:
+        headers = dict(request.headers)
+        token = _bearer_token.get()
+        return JSONResponse({
+            "headers": headers,
+            "bearer_token_in_ctx": bool(token),
+            "token_prefix": token[:12] + "..." if token else None,
+        })
 
-    return Starlette(routes=routes)
+    routes.append(Route("/healthz", healthz))
+    routes.append(Route("/debug/headers", debug_headers))
+
+    @contextlib.asynccontextmanager
+    async def lifespan(app: Starlette) -> Any:
+        async with contextlib.AsyncExitStack() as stack:
+            for mcp_http_app in mcp_http_apps:
+                await stack.enter_async_context(mcp_http_app.lifespan(app))
+            yield
+
+    return Starlette(routes=routes, lifespan=lifespan)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="MCP Gateway")
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--host", default=os.environ.get("HOST", "0.0.0.0"))
-    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")))
+    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8001")))
     parser.add_argument("--log-level", default=os.environ.get("LOG_LEVEL", "info"))
     args = parser.parse_args()
 

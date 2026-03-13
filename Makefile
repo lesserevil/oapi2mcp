@@ -1,42 +1,33 @@
 .DEFAULT_GOAL := help
 
-HORDE_DIR := mcp-servers/horde
-HORDE_PYTHON := $(HORDE_DIR)/.venv/bin/python
+PYTHON := .venv/bin/python
 
-.PHONY: help setup-horde run-horde stop-horde logs-horde run-horde-docker
+.PHONY: help setup run test lint
 
 help:
-	@echo "MCP-as-a-Service"
+	@echo "oapi2mcp — OpenAPI → MCP gateway"
 	@echo ""
-	@echo "  setup-horde       Install Python deps for Horde MCP"
-	@echo "  run-horde         Start the Horde MCP server (SSE on :8001)"
-	@echo "  run-horde-docker  Start via Docker Compose"
-	@echo "  stop-horde        Stop Docker Compose service"
-	@echo "  logs-horde        Tail Docker Compose logs"
+	@echo "  setup   Install dependencies into .venv"
+	@echo "  run     Start the gateway (streamable-http on :8000)"
+	@echo "  test    Run tests"
+	@echo "  lint    Run ruff linter"
 	@echo ""
-	@echo "Setup: cp $(HORDE_DIR)/.env.example $(HORDE_DIR)/.env && edit AUTH_TOKEN"
+	@echo "Config: config.yaml"
+	@echo "Env:    HOST, PORT, LOG_LEVEL"
 
-setup-horde:
-	cd $(HORDE_DIR) && uv venv --python 3.12 .venv 2>/dev/null || true
-	cd $(HORDE_DIR) && uv pip install fastmcp httpx uvicorn
+setup:
+	uv venv --python 3.13 .venv 2>/dev/null || true
+	uv pip install --python $(PYTHON) fastmcp httpx uvicorn pyyaml pytest pytest-asyncio ruff
 
-run-horde:
-	@if [ ! -f $(HORDE_DIR)/.env ]; then \
-		echo "Missing $(HORDE_DIR)/.env — copy from .env.example and set AUTH_TOKEN"; \
+run:
+	@if [ ! -f $(PYTHON) ]; then \
+		echo "Missing venv — run: make setup"; \
 		exit 1; \
 	fi
-	@if [ ! -f $(HORDE_PYTHON) ]; then \
-		echo "Missing venv — run: make setup-horde"; \
-		exit 1; \
-	fi
-	cd $(HORDE_DIR) && set -a && . ./.env && set +a && \
-		$(abspath $(HORDE_PYTHON)) server.py
+	$(PYTHON) gateway.py --port $${PORT:-8001}
 
-run-horde-docker:
-	docker compose -f $(HORDE_DIR)/docker-compose.yml up -d
+test:
+	.venv/bin/pytest test_gateway.py -v
 
-stop-horde:
-	docker compose -f $(HORDE_DIR)/docker-compose.yml down
-
-logs-horde:
-	docker compose -f $(HORDE_DIR)/docker-compose.yml logs -f
+lint:
+	.venv/bin/ruff check gateway.py test_gateway.py
