@@ -92,7 +92,9 @@ async def test_send_injects_bearer_token_into_prebuilt_request():
     class CapturingTransport(httpx.AsyncBaseTransport):
         async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
             captured["auth"] = request.headers.get("authorization")
-            return httpx.Response(200, headers={"content-type": "application/json"}, text="{}", request=request)
+            return httpx.Response(
+                200, headers={"content-type": "application/json"}, text="{}", request=request
+            )
 
     client = TokenPropagatingClient(base_url="http://example.com", transport=CapturingTransport())
     request = httpx.Request("GET", "http://example.com/api/v1/foo")  # pre-built, no auth header
@@ -114,7 +116,9 @@ async def test_send_no_token_omits_auth_header():
     class CapturingTransport(httpx.AsyncBaseTransport):
         async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
             captured["auth"] = request.headers.get("authorization")
-            return httpx.Response(200, headers={"content-type": "application/json"}, text="{}", request=request)
+            return httpx.Response(
+                200, headers={"content-type": "application/json"}, text="{}", request=request
+            )
 
     client = TokenPropagatingClient(base_url="http://example.com", transport=CapturingTransport())
     request = httpx.Request("GET", "http://example.com/api/v1/foo")
